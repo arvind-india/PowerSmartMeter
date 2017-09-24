@@ -1,8 +1,15 @@
 #include <Wire.h>
 uint8_t buffer[32];
+uint32_t startTime = 0;
 
 #define INT_PIN D2
 bool dataAvailable = false;
+
+struct totals
+{
+   uint32_t totalPeriodTime;
+   uint32_t totalRevolutions;
+};
 
 void setThresholds(int lowThres, int uppThres) {
     Wire.beginTransmission(42);
@@ -24,6 +31,21 @@ void setModeMeasureMode() {
     Wire.beginTransmission(42);
     Wire.write(0x82);
     boolean allesgut = Wire.endTransmission();
+}
+
+totals requestTotals() {
+    Wire.beginTransmission(42);
+    Wire.write(8);
+    boolean allesgut = Wire.endTransmission();
+    Wire.requestFrom(42, 8);
+    int index = 0;
+    while (Wire.available()) {
+        buffer[index++] = Wire.read();   
+    }
+    totals totalValues;
+    totalValues.totalRevolutions = (buffer[0] << 8 <<8 << 8) + (buffer[1] << 8 << 8) + (buffer[2] << 8) + (buffer[3]);
+    totalValues.totalPeriodTime = (buffer[4] << 8 <<8 << 8) + (buffer[5] << 8 << 8) + (buffer[6] << 8) + (buffer[7]);
+    return totalValues;
 }
 
 int requestReflection(){
@@ -57,6 +79,7 @@ void setup() {
     //delay(500);
     //setModeFreeRunningMode();
     setModeMeasureMode();
+    startTime = millis();
 }
 
 void loop() {
@@ -75,7 +98,13 @@ void loop() {
         Serial.println("period time: " + String(m));
     }
     else {
-        requestReflection();
-        delay(100);
+        //requestReflection();
+        delay(1000);
+        if (millis() - startTime > 60000){
+            Serial.println("requesting total values");
+            startTime = millis();
+            totals tvs = requestTotals();
+            Serial.println("Total values: totalRevs = " + String(tvs.totalRevolutions) + ", totalPeriodTime = " + String(tvs.totalPeriodTime));
+        }
     }
 }

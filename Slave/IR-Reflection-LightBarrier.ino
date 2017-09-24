@@ -17,6 +17,8 @@ uint32_t start = 0;
 uint32_t iPeriod = 0;
 float counter = 0.0;
 float power = 0.0;
+uint32_t countsSinceLastQuery = 0;
+uint32_t periodTimeSinceLastQuery = 0;
 
 enum irStates {
     unknown,
@@ -95,6 +97,19 @@ void requestEvent(void) {
     buffer[3] = (uint8_t)(iPeriod);
     Wire.write(buffer, 4); 
   }
+  else if (cmd == 8) {
+    buffer[0] = (uint8_t)(countsSinceLastQuery >> 8 >> 8 >> 8);
+    buffer[1] = (uint8_t)(countsSinceLastQuery >> 8 >> 8);
+    buffer[2] = (uint8_t)(countsSinceLastQuery >> 8);
+    buffer[3] = (uint8_t)(countsSinceLastQuery);
+    buffer[4] = (uint8_t)(periodTimeSinceLastQuery >> 8 >> 8 >> 8);
+    buffer[5] = (uint8_t)(periodTimeSinceLastQuery >> 8 >> 8);
+    buffer[6] = (uint8_t)(periodTimeSinceLastQuery >> 8);
+    buffer[7] = (uint8_t)(periodTimeSinceLastQuery);
+    countsSinceLastQuery = 0;
+    periodTimeSinceLastQuery = 0;
+    Wire.write(buffer, 8);
+  }
 }
 
 void receiveEvent(int anzahl)
@@ -119,6 +134,11 @@ void receiveEvent(int anzahl)
     }
     if (cmd == 4) {
       // cmd == 4 = request actual period time
+      // only set command code and wait for the data request
+      return;
+    }
+    if (cmd == 8) {
+      // cmd == 8 = request totals sinc elast request
       // only set command code and wait for the data request
       return;
     }
@@ -205,6 +225,9 @@ void loop() {
       ;
     uint32_t T = millis() - start;
     iPeriod = T;
+    countsSinceLastQuery++;
+    periodTimeSinceLastQuery += iPeriod;
+    
     Serial.println("red --> blank");
     
     // send T to database...
