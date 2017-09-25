@@ -91,19 +91,19 @@ void requestEvent(void) {
   }
   else if (cmd == 4) {
     // transmit iPeriod to master
-    buffer[0] = (uint8_t)(iPeriod >> 8 >> 8 >> 8);
-    buffer[1] = (uint8_t)(iPeriod >> 8 >> 8);
+    buffer[0] = (uint8_t)(iPeriod >> 24);
+    buffer[1] = (uint8_t)(iPeriod >> 16);
     buffer[2] = (uint8_t)(iPeriod >> 8);
     buffer[3] = (uint8_t)(iPeriod);
     Wire.write(buffer, 4); 
   }
   else if (cmd == 8) {
-    buffer[0] = (uint8_t)(countsSinceLastQuery >> 8 >> 8 >> 8);
-    buffer[1] = (uint8_t)(countsSinceLastQuery >> 8 >> 8);
+    buffer[0] = (uint8_t)(countsSinceLastQuery >> 24);
+    buffer[1] = (uint8_t)(countsSinceLastQuery >> 16);
     buffer[2] = (uint8_t)(countsSinceLastQuery >> 8);
     buffer[3] = (uint8_t)(countsSinceLastQuery);
-    buffer[4] = (uint8_t)(periodTimeSinceLastQuery >> 8 >> 8 >> 8);
-    buffer[5] = (uint8_t)(periodTimeSinceLastQuery >> 8 >> 8);
+    buffer[4] = (uint8_t)(periodTimeSinceLastQuery >> 24);
+    buffer[5] = (uint8_t)(periodTimeSinceLastQuery >> 16);
     buffer[6] = (uint8_t)(periodTimeSinceLastQuery >> 8);
     buffer[7] = (uint8_t)(periodTimeSinceLastQuery);
     countsSinceLastQuery = 0;
@@ -177,8 +177,8 @@ void setup() {
   while (i < 4) {
     buf[i++] = EEPROM.read(eepromAddr++);
   }
-  int lowThres = (buf[0]<<8) + buf[1];
-  int uppThres = (buf[2]<<8) + buf[3];
+  int lowThres = (buf[0]<< 8) + buf[1];
+  int uppThres = (buf[2]<< 8) + buf[3];
   if (lowThres != lowerThreshold) lowerThreshold = lowThres;
   if (uppThres != upperThreshold) upperThreshold = uppThres;
   Serial.println("From eeprom: lowerThreshold: " + String(lowerThreshold) + ", upperThreshold: " + String(upperThreshold));      
@@ -187,8 +187,8 @@ void setup() {
 void loop() {
   if (storeThresholds) {
     storeThresholds = false;
-    int lowThres = (r_buffer[0]<<8) + r_buffer[1];
-    int uppThres = (r_buffer[2]<<8) + r_buffer[3];
+    int lowThres = (r_buffer[0]<< 8) + r_buffer[1];
+    int uppThres = (r_buffer[2]<< 8) + r_buffer[3];
     Serial.println("lowThres: " + String(lowThres) + ", uppThres: " + String(uppThres));   
     uint8_t i = 0;
     long eepromAddr = 0;

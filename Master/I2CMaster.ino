@@ -43,8 +43,8 @@ totals requestTotals() {
         buffer[index++] = Wire.read();   
     }
     totals totalValues;
-    totalValues.totalRevolutions = (buffer[0] << 8 <<8 << 8) + (buffer[1] << 8 << 8) + (buffer[2] << 8) + (buffer[3]);
-    totalValues.totalPeriodTime = (buffer[4] << 8 <<8 << 8) + (buffer[5] << 8 << 8) + (buffer[6] << 8) + (buffer[7]);
+    totalValues.totalRevolutions = (buffer[0] << 24) + (buffer[1] << 16) + (buffer[2] << 8) + buffer[3];
+    totalValues.totalPeriodTime = (buffer[4] << 24) + (buffer[5] << 16) + (buffer[6] << 8) + buffer[7];
     return totalValues;
 }
 
@@ -94,7 +94,7 @@ void loop() {
         while (Wire.available()) {
             buffer[index++] = Wire.read();   
         }
-        uint32_t m = (buffer[0] << 8 <<8 << 8) + (buffer[1] << 8 << 8) + (buffer[2] << 8) + (buffer[3]); 
+        uint32_t m = (buffer[0] << 24) + (buffer[1] << 16) + (buffer[2] << 8) + buffer[3]; 
         Serial.println("period time: " + String(m));
     }
     else {
