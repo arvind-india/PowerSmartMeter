@@ -48,6 +48,19 @@ totals requestTotals() {
     return totalValues;
 }
 
+uint32_t requestActualPeriodTime() {
+    Wire.beginTransmission(42);
+    Wire.write(4);
+    boolean allesgut = Wire.endTransmission();
+    Wire.requestFrom(42, 4);
+    int index = 0;
+    while (Wire.available()) {
+        buffer[index++] = Wire.read();   
+    }
+    uint32_t m = (buffer[0] << 24) + (buffer[1] << 16) + (buffer[2] << 8) + buffer[3];
+    return m;
+}
+
 int requestReflection(){
     Wire.beginTransmission(42);
     Wire.write(1);
@@ -59,6 +72,19 @@ int requestReflection(){
     }
     int m = (buffer[0] << 8) + buffer[1]; 
     Serial.println(m);
+    return m;
+}
+
+uint8_t requestActualRunningMode() {
+    Wire.beginTransmission(42);
+    Wire.write(16);
+    boolean allesgut = Wire.endTransmission();
+    Wire.requestFrom(42, 1);
+    int index = 0;
+    while (Wire.available()) {
+        buffer[index++] = Wire.read();   
+    }
+    uint8_t m = buffer[0]; 
     return m;
 }
 
@@ -78,29 +104,21 @@ void setup() {
     //setThresholds(222, 777);
     //delay(500);
     //setModeFreeRunningMode();
-    setModeMeasureMode();
+    //setModeMeasureMode();
+    Serial.println("actual runningMode = " + String(requestActualRunningMode()));
     startTime = millis();
 }
 
 void loop() {
     if (dataAvailable) {
         Serial.println("Received interrupt that data is available");
-        dataAvailable = false;
-        Wire.beginTransmission(42);
-        Wire.write(4);
-        boolean allesgut = Wire.endTransmission();
-        Wire.requestFrom(42, 4);
-        int index = 0;
-        while (Wire.available()) {
-            buffer[index++] = Wire.read();   
-        }
-        uint32_t m = (buffer[0] << 24) + (buffer[1] << 16) + (buffer[2] << 8) + buffer[3]; 
-        Serial.println("period time: " + String(m));
+        dataAvailable = false; 
+        Serial.println("period time: " + String(requestActualPeriodTime()));
     }
     else {
         //requestReflection();
-        delay(1000);
-        if (millis() - startTime > 60000){
+        //delay(1000);
+        if (millis() - startTime > 300000){
             Serial.println("requesting total values");
             startTime = millis();
             totals tvs = requestTotals();

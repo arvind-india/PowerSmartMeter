@@ -9,16 +9,18 @@ const int revs_per_kWh = 150;
 
 bool storeThresholds = false;
 bool prepareMeasureMode = true;
-int m = 0;
 uint8_t buffer[32];
 uint8_t r_buffer[32];
 uint8_t cmd = 0xFF;
+uint16_t lowerThreshold = 0;
+uint16_t upperThreshold = 0;
+uint16_t m = 0;
 uint32_t start = 0;
 uint32_t iPeriod = 0;
-float counter = 0.0;
-float power = 0.0;
 uint32_t countsSinceLastQuery = 0;
 uint32_t periodTimeSinceLastQuery = 0;
+float counter = 0.0;
+float power = 0.0;
 
 enum irStates {
     unknown,
@@ -32,12 +34,9 @@ enum runningModes {
   freerunMode,
   measureMode
 };
-enum runningModes runningMode = stopped;
+enum runningModes runningMode = measureMode;
 
-int lowerThreshold = 0;
-int upperThreshold = 0;
-
-int measureReflection() {
+uint16_t measureReflection() {
   digitalWrite(irOutPin, LOW);
   delay(10);
   float irValueOff = analogRead(analogInPin);
@@ -46,7 +45,7 @@ int measureReflection() {
   delay(10);
   float irValueOn = analogRead(analogInPin);
 
-  return (int)irValueOn - (int)irValueOff;
+  return (uint16_t)irValueOn - (uint16_t)irValueOff;
 }
 
 enum irStates getIrState() {
@@ -57,7 +56,7 @@ enum irStates getIrState() {
     return unknown;
   }
 
-  int sample = measureReflection();
+  uint16_t sample = measureReflection();
   m = sample;
   if (sample > upperThreshold) {
     digitalWrite(ledOutPin, LOW);
@@ -75,7 +74,7 @@ enum irStates getIrState() {
 }
 
 void requestEvent(void) {
-  if (cmd == 1) {
+  if (cmd == 0x01) {
     // cmd 1 requests the actual reflection value (2 Bytes)
     if (runningMode != stopped) {
       // measurements are enabled, give back last refelection value
@@ -89,7 +88,7 @@ void requestEvent(void) {
     }
     Wire.write(buffer, 2);  
   }
-  else if (cmd == 4) {
+  else if (cmd == 0x04) {
     // transmit iPeriod to master
     buffer[0] = (uint8_t)(iPeriod >> 24);
     buffer[1] = (uint8_t)(iPeriod >> 16);
@@ -97,7 +96,7 @@ void requestEvent(void) {
     buffer[3] = (uint8_t)(iPeriod);
     Wire.write(buffer, 4); 
   }
-  else if (cmd == 8) {
+  else if (cmd == 0x08) {
     buffer[0] = (uint8_t)(countsSinceLastQuery >> 24);
     buffer[1] = (uint8_t)(countsSinceLastQuery >> 16);
     buffer[2] = (uint8_t)(countsSinceLastQuery >> 8);
@@ -110,19 +109,24 @@ void requestEvent(void) {
     periodTimeSinceLastQuery = 0;
     Wire.write(buffer, 8);
   }
+  else if (cmd == 0x10) {
+    // cmd 16 requests the actual running mode (1 Byte)
+    buffer[0] = (uint8_t)runningMode;
+    Wire.write(buffer, 1);  
+  }
 }
 
 void receiveEvent(int anzahl)
 {
-  int index = 0;
+  uint8_t index = 0;
   if (Wire.available()) {
     cmd = Wire.read();
-    if (cmd == 1) {
+    if (cmd == 0x01) {
       // cmd == 1 = request actual reflection value
       // only set command code and wait for the data request
       return;
     }
-    if (cmd == 2) {
+    if (cmd == 0x02) {
       // cmd == 2 = set thresholds. Wait for further 4 Bytes with the 2 values for lower and upper threshold
       while (Wire.available()) {
         r_buffer[index++] = Wire.read();
@@ -132,13 +136,18 @@ void receiveEvent(int anzahl)
         storeThresholds = true;
       return; 
     }
-    if (cmd == 4) {
+    if (cmd == 0x04) {
       // cmd == 4 = request actual period time
       // only set command code and wait for the data request
       return;
     }
-    if (cmd == 8) {
-      // cmd == 8 = request totals sinc elast request
+    if (cmd == 0x08) {
+      // cmd == 8 = request totals since last request
+      // only set command code and wait for the data request
+      return;
+    }
+    if (cmd == 0x10) {
+      // cmd == 8 = request actual running mode
       // only set command code and wait for the data request
       return;
     }
@@ -177,8 +186,8 @@ void setup() {
   while (i < 4) {
     buf[i++] = EEPROM.read(eepromAddr++);
   }
-  int lowThres = (buf[0]<< 8) + buf[1];
-  int uppThres = (buf[2]<< 8) + buf[3];
+  uint16_t lowThres = (buf[0]<< 8) + buf[1];
+  uint16_t uppThres = (buf[2]<< 8) + buf[3];
   if (lowThres != lowerThreshold) lowerThreshold = lowThres;
   if (uppThres != upperThreshold) upperThreshold = uppThres;
   Serial.println("From eeprom: lowerThreshold: " + String(lowerThreshold) + ", upperThreshold: " + String(upperThreshold));      
@@ -187,8 +196,8 @@ void setup() {
 void loop() {
   if (storeThresholds) {
     storeThresholds = false;
-    int lowThres = (r_buffer[0]<< 8) + r_buffer[1];
-    int uppThres = (r_buffer[2]<< 8) + r_buffer[3];
+    uint16_t lowThres = (r_buffer[0]<< 8) + r_buffer[1];
+    uint16_t uppThres = (r_buffer[2]<< 8) + r_buffer[3];
     Serial.println("lowThres: " + String(lowThres) + ", uppThres: " + String(uppThres));   
     uint8_t i = 0;
     long eepromAddr = 0;
