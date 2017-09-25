@@ -123,6 +123,11 @@ void loop() {
             startTime = millis();
             totals tvs = requestTotals();
             Serial.println("Total values: totalRevs = " + String(tvs.totalRevolutions) + ", totalPeriodTime = " + String(tvs.totalPeriodTime));
+            if (tvs.totalRevolutions) {
+                float period = (float)tvs.totalPeriodTime / 1000.0;
+                counter += (float)tvs.totalRevoutions / revs_per_kWh; 
+                power = 3600.0 / (revs_per_kWh * period);
+            }
         }
     }
 }
