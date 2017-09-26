@@ -4,6 +4,9 @@ uint32_t startTime = 0;
 
 #define INT_PIN D2
 bool dataAvailable = false;
+const int revs_per_kWh = 150;
+float counter = 0.0;
+float power = 0.0;
 
 struct totals
 {
@@ -95,7 +98,8 @@ void handleInterrupt() {
 void setup() {
   // put your setup code here, to run once:
     Serial.begin(115200);
-
+    Serial.println();
+    
     pinMode(INT_PIN, INPUT_PULLUP);
     attachInterrupt(digitalPinToInterrupt(INT_PIN), handleInterrupt, FALLING);
  
@@ -113,7 +117,7 @@ void loop() {
     if (dataAvailable) {
         Serial.println("Received interrupt that data is available");
         dataAvailable = false; 
-        Serial.println("period time: " + String(requestActualPeriodTime()));
+        Serial.println("period time: " + String(requestActualPeriodTime()) + "ms");
     }
     else {
         //requestReflection();
@@ -122,11 +126,12 @@ void loop() {
             Serial.println("requesting total values");
             startTime = millis();
             totals tvs = requestTotals();
-            Serial.println("Total values: totalRevs = " + String(tvs.totalRevolutions) + ", totalPeriodTime = " + String(tvs.totalPeriodTime));
+            Serial.println("Total values: totalRevs = " + String(tvs.totalRevolutions) + ", totalPeriodTime = " + String(tvs.totalPeriodTime)+ "ms");
             if (tvs.totalRevolutions) {
                 float period = (float)tvs.totalPeriodTime / 1000.0;
-                counter += (float)tvs.totalRevoutions / revs_per_kWh; 
-                power = 3600.0 / (revs_per_kWh * period);
+                counter += (float)tvs.totalRevolutions / revs_per_kWh; 
+                power = (float)tvs.totalRevolutions * 3600.0 / (revs_per_kWh * period);
+                Serial.println("actual counter: " + String(counter) + "kWh, actual power: " + String(power)+ "kW");
             }
         }
     }
