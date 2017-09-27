@@ -264,6 +264,16 @@ void loop() {
                 counter += (float)tvs.totalRevolutions / revs_per_kWh; 
                 power = (float)tvs.totalRevolutions * 3600.0 / (revs_per_kWh * period);
                 Serial.println("actual counter: " + String(counter) + "kWh, actual power: " + String(power)+ "kW");
+         
+                if (WiFi.status() == WL_CONNECTED) {
+                    Serial.println("WiFi connected, sending data");
+                }
+                else {
+                    Serial.println("WiFi not connected, trying to connect...");
+                    String ssid = WiFi.SSID();
+                    String pwd = WiFi.psk();
+                    WiFi.begin(ssid.c_str(), pwd.c_str());
+                }
             }
         }
     }
