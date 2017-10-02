@@ -10,11 +10,15 @@
 #define INT_PIN D2
 #define BTN_PIN D7
 
+uint16_t mw[1000];
+uint16_t lowerTrigger = 0;
+uint16_t upperTrigger = 0;
+
 uint8_t buffer[32];
 uint32_t startTime = 0;
 bool dataAvailable = false;
 bool shouldSaveConfig = false;
-const int revs_per_kWh = 150;
+const uint8_t revs_per_kWh = 150;
 float counter = 0.0;
 float power = 0.0;
 char ccuip[16] = "192.168.178.54";
@@ -71,7 +75,8 @@ bool loadConfig() {
     return true;
 }
 
-void setStateCcuSysVar(String sysvar, String value) {
+int setStateCcuSysVar(String sysvar, String value) {
+    int rc = -1;
     if (WiFi.status() == WL_CONNECTED)
     {
         HTTPClient http;
@@ -79,6 +84,7 @@ void setStateCcuSysVar(String sysvar, String value) {
         Serial.println("URL = " + url);
         http.begin(url);
         int httpCode = http.GET();
+        rc = httpCode;
         Serial.println("httpcode = " + String(httpCode));
         if (httpCode > 0) {
             //String payload = http.getString();
@@ -88,9 +94,10 @@ void setStateCcuSysVar(String sysvar, String value) {
         }
         http.end();
     } else Serial.println("wifi not connected!");
+    return rc;
 }
 
-void setThresholds(int lowThres, int uppThres) {
+void setThresholds(uint16_t lowThres, uint16_t uppThres) {
     Wire.beginTransmission(42);
     Wire.write(2);
     Wire.write(lowThres >> 8);
@@ -140,7 +147,7 @@ uint32_t requestActualPeriodTime() {
     return m;
 }
 
-int requestReflection(){
+uint16_t requestReflection(){
     Wire.beginTransmission(42);
     Wire.write(1);
     boolean allesgut = Wire.endTransmission();
@@ -149,8 +156,8 @@ int requestReflection(){
     while (Wire.available()) {
         buffer[index++] = Wire.read();   
     }
-    int m = (buffer[0] << 8) + buffer[1]; 
-    Serial.println(m);
+    uint16_t m = (buffer[0] << 8) + buffer[1]; 
+    //Serial.println(m);
     return m;
 }
 
@@ -246,6 +253,69 @@ void setup() {
 }
 
 void loop() {
+    if (digitalRead(BTN_PIN) == LOW) {
+        uint16_t maxLowerThreshold = 0;
+        uint16_t minUpperThreshold = 0;
+        uint8_t successCounter = 0;
+
+        Serial.println("trying to evaluate the IR reflection thresholds");
+        Serial.println("Changing to free running mode");
+        setModeFreeRunningMode();
+        Serial.println("free running mode active..");
+        while (successCounter <= 5) {
+            uint32_t t1 = millis();
+            while (millis() - t1 < 60000) {
+                uint16_t r = requestReflection();
+                mw[r]++;
+            }
+        
+            uint16_t count = 0;
+            uint16_t locMax = 0;
+            for (uint16_t i=1; i<1000; i++) {
+                Serial.println(String(i) + ":" + String(mw[i]) + " ");
+                int16_t steigung = mw[i] - mw[i-1];
+                //Serial.print("S: " + String(steigung) + " ");
+                    
+                if (steigung < -150) {
+                    locMax = (i-1);
+                    //Serial.println("Lokales Maximum gefunden bei: " + String(locMax));
+                    count++;
+                    if (count == 1)
+                        maxLowerThreshold = locMax;
+                    else {
+                        if ( (locMax - maxLowerThreshold) > 500) {
+                            minUpperThreshold = locMax;
+                            break;
+                        }
+                        else {
+                            maxLowerThreshold = locMax;    
+                        }
+                    }
+                }
+            }
+            Serial.println("maxLowerThreshold = " + String(maxLowerThreshold) + ", minUpperThreshold = " + String(minUpperThreshold));
+            if (maxLowerThreshold > minUpperThreshold) {
+                Serial.println("Could not evaluate thresholds, starting over..");
+                for (uint16_t i=0; i < 1000; i++)
+                    mw[i] = 0;
+            }
+            else {
+                successCounter++;
+            }
+        }
+        uint16_t width = minUpperThreshold - maxLowerThreshold;
+        float gap = 0.25 * (float)width;
+        lowerTrigger = maxLowerThreshold + (uint16_t)gap;
+        upperTrigger = minUpperThreshold - (uint16_t)gap;
+        Serial.println("Set triggers to: (" + String(lowerTrigger) + "," + String(upperTrigger) + ")");      
+        setThresholds(lowerTrigger, upperTrigger); 
+        Serial.println("thresholds set, switching to measure mode");
+        setModeMeasureMode();
+        Serial.println("measure mode active.."); 
+        dataAvailable = false;
+        startTime = millis();
+    }
+    
     if (dataAvailable) {
         Serial.println("Received interrupt that data is available");
         dataAvailable = false; 
@@ -267,6 +337,8 @@ void loop() {
          
                 if (WiFi.status() == WL_CONNECTED) {
                     Serial.println("WiFi connected, sending data");
+                    int rc = setStateCcuSysVar(ccuSysvarActPower, String(power));
+                    rc = setStateCcuSysVar(ccuSysvarPowerCounter, String(counter));
                 }
                 else {
                     Serial.println("WiFi not connected, trying to connect...");
