@@ -1,26 +1,27 @@
 #include <Wire.h>
 #include <EEPROM.h>
 
-const int irOutPin = 12;
-const int ledOutPin = 13;
+const int irOutPin =    12;
+const int ledOutPin =   13;
 const int analogInPin = A0;
-const int intOutPin = A3;
-const int revs_per_kWh = 150;
+const int intOutPin =   A3;
+//        SDA =         A4;
+//        SCL =         A5;
 
-bool storeThresholds = false;
-bool prepareMeasureMode = true;
-uint8_t buffer[32];
-uint8_t r_buffer[32];
-uint8_t cmd = 0xFF;
-uint16_t lowerThreshold = 0;
-uint16_t upperThreshold = 0;
-uint16_t m = 0;
-uint32_t start = 0;
-uint32_t iPeriod = 0;
-uint32_t countsSinceLastQuery = 0;
-uint32_t periodTimeSinceLastQuery = 0;
-float counter = 0.0;
-float power = 0.0;
+bool      storeThresholds = false;
+bool      prepareMeasureMode = true;
+uint8_t   buffer[32];
+uint8_t   r_buffer[32];
+uint8_t   cmd = 0xFF;
+uint16_t  lowerThreshold = 0;
+uint16_t  upperThreshold = 0;
+uint16_t  m = 0;
+uint32_t  start = 0;
+uint32_t  iPeriod = 0;
+uint32_t  countsSinceLastQuery = 0;
+uint32_t  periodTimeSinceLastQuery = 0;
+float     counter = 0.0;
+float     power = 0.0;
 
 enum irStates {
     unknown,
@@ -243,16 +244,12 @@ void loop() {
     Serial.println("T: " + String(T));
 
     if (T > 100) {
-        //float period = T / 1000.0;
-        //counter += 1.0 / revs_per_kWh; 
-        //power = 3600.0 / (revs_per_kWh * period);
         // generate interrupt for master
         digitalWrite(intOutPin, LOW);
         Serial.print("\\");
         delay(1);
         Serial.print("/");
         digitalWrite(intOutPin, HIGH);
-        //Serial.println("Writing to db: counter = " + String(counter) + ", power = " + String(power));
     }
     else {
         Serial.println("ignoring first sample after startup");

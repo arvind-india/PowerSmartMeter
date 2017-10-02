@@ -266,6 +266,7 @@ void loop() {
             uint32_t t1 = millis();
             while (millis() - t1 < 60000) {
                 uint16_t r = requestReflection();
+                delay(1);
                 mw[r]++;
             }
         
