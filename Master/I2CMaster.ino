@@ -263,6 +263,9 @@ void loop() {
         setModeFreeRunningMode();
         Serial.println("free running mode active..");
         while (successCounter <= 5) {
+            for (uint16_t i=0; i < 1000; i++)
+                mw[i] = 0;
+            
             uint32_t t1 = millis();
             while (millis() - t1 < 60000) {
                 uint16_t r = requestReflection();
@@ -273,7 +276,7 @@ void loop() {
             uint16_t count = 0;
             uint16_t locMax = 0;
             for (uint16_t i=1; i<1000; i++) {
-                Serial.println(String(i) + ":" + String(mw[i]) + " ");
+                //Serial.println(String(i) + ":" + String(mw[i]) + " ");
                 int16_t steigung = mw[i] - mw[i-1];
                 //Serial.print("S: " + String(steigung) + " ");
                     

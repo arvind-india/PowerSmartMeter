@@ -36,6 +36,7 @@ enum runningModes {
   measureMode
 };
 enum runningModes runningMode = measureMode;
+//enum runningModes runningMode = freerunMode;
 
 uint16_t measureReflection() {
   digitalWrite(irOutPin, LOW);
@@ -216,8 +217,16 @@ void loop() {
   else if (runningMode == measureMode) {
     if (prepareMeasureMode) {
       irState = unknown;
-      while ((irState = getIrState()) == unknown)
-        ;
+      while ((irState = getIrState()) == unknown) {
+        uint16_t m = measureReflection();
+        //Serial.print(t);
+        //Serial.print(" ");
+        digitalWrite(ledOutPin, HIGH);
+        delay(m/2);
+        digitalWrite(ledOutPin, LOW);
+        delay(m/2);
+      }
+     
       if (irState == blank) {
         Serial.println("Setup(), while state.blank");
         while((irState = getIrState()) == blank)
