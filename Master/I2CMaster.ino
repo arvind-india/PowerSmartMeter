@@ -16,7 +16,7 @@ uint16_t upperTrigger = 0;
 
 uint8_t buffer[32];
 uint32_t startTime = 0;
-bool dataAvailable = false;
+volatile bool dataAvailable = false;
 bool shouldSaveConfig = false;
 const uint8_t revs_per_kWh = 150;
 float counter = 0.0;
@@ -135,13 +135,21 @@ totals requestTotals() {
 }
 
 uint32_t requestActualPeriodTime() {
+    Serial.print('#');
     Wire.beginTransmission(42);
     Wire.write(4);
     boolean allesgut = Wire.endTransmission();
+    Serial.print('*');
+    delay(1);
     Wire.requestFrom(42, 4);
     int index = 0;
+    //delay(10);
+    while (!Wire.available())
+        ;
     while (Wire.available()) {
-        buffer[index++] = Wire.read();   
+        uint8_t b = Wire.read();
+        Serial.print("rb=" + String(b) + " ");
+        buffer[index++] = b;   
     }
     uint32_t m = (buffer[0] << 24) + (buffer[1] << 16) + (buffer[2] << 8) + buffer[3];
     return m;
@@ -154,8 +162,11 @@ uint16_t requestReflection(){
     Wire.requestFrom(42, 2);
     int index = 0;
     while (Wire.available()) {
-        buffer[index++] = Wire.read();   
+        uint8_t rb = Wire.read();
+        //Serial.print("rb=" + String(rb) + " ");
+        buffer[index++] = rb;//Wire.read();   
     }
+    //Serial.println();
     uint16_t m = (buffer[0] << 8) + buffer[1]; 
     //Serial.println(m);
     return m;
@@ -261,6 +272,8 @@ void loop() {
         Serial.println("trying to evaluate the IR reflection thresholds");
         Serial.println("Changing to free running mode");
         setModeFreeRunningMode();
+        delay(500);
+        
         Serial.println("free running mode active..");
         while (successCounter <= 5) {
             for (uint16_t i=0; i < 1000; i++)
@@ -276,7 +289,7 @@ void loop() {
             uint16_t count = 0;
             uint16_t locMax = 0;
             for (uint16_t i=1; i<1000; i++) {
-                //Serial.println(String(i) + ":" + String(mw[i]) + " ");
+                Serial.println(String(i) + ":" + String(mw[i]) + " ");
                 int16_t steigung = mw[i] - mw[i-1];
                 //Serial.print("S: " + String(steigung) + " ");
                     
@@ -298,7 +311,7 @@ void loop() {
                 }
             }
             Serial.println("maxLowerThreshold = " + String(maxLowerThreshold) + ", minUpperThreshold = " + String(minUpperThreshold));
-            if (maxLowerThreshold > minUpperThreshold) {
+            if (maxLowerThreshold >= minUpperThreshold) {
                 Serial.println("Could not evaluate thresholds, starting over..");
                 for (uint16_t i=0; i < 1000; i++)
                     mw[i] = 0;
@@ -321,16 +334,21 @@ void loop() {
     }
     
     if (dataAvailable) {
+        noInterrupts();
         Serial.println("Received interrupt that data is available");
-        dataAvailable = false; 
-        Serial.println("period time: " + String(requestActualPeriodTime()) + "ms");
+        uint32_t pt = requestActualPeriodTime();
+        Serial.println("period time: " + String(pt) + "ms");
+        delay(10);
+        dataAvailable = false;
+        interrupts();
     }
+    
     else {
         //requestReflection();
         //delay(1000);
         if (millis() - startTime > 300000){
             Serial.println("requesting total values");
-            startTime = millis();
+            startTime = millis();  
             totals tvs = requestTotals();
             Serial.println("Total values: totalRevs = " + String(tvs.totalRevolutions) + ", totalPeriodTime = " + String(tvs.totalPeriodTime)+ "ms");
             if (tvs.totalRevolutions) {
