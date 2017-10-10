@@ -12,7 +12,7 @@ bool      storeThresholds = false;
 bool      prepareMeasureMode = true;
 uint8_t   buffer[32];
 uint8_t   r_buffer[32];
-uint8_t   cmd = 0xFF;
+volatile uint8_t   cmd = 0xFF;
 uint16_t  lowerThreshold = 0;
 uint16_t  upperThreshold = 0;
 uint16_t  m = 0;
@@ -20,8 +20,6 @@ uint32_t  start = 0;
 uint32_t  iPeriod = 0;
 uint32_t  countsSinceLastQuery = 0;
 uint32_t  periodTimeSinceLastQuery = 0;
-float     counter = 0.0;
-float     power = 0.0;
 
 // define the states of the wheel of the electricity meter
 // the wheel has a single red mark on it's circumference so we have the two states 'blank wheel' and 'red mark'
@@ -31,7 +29,7 @@ enum irStates {
     red,
     blank
 };
-enum irStates irState;
+enum irStates irState = unknown;
 
 // define the running modes for the measurements
 // stopped = self explanatory
@@ -69,7 +67,7 @@ uint16_t measureReflection() {
 // if thresholds are defined the measured reflection value is compared against them and the state is
 // returned accordingly
 enum irStates getIrState() {
-    static enum irStates lastState;
+    static enum irStates lastState = unknown;
 
     if (lowerThreshold == upperThreshold) {
         lastState = unknown;
@@ -95,15 +93,16 @@ enum irStates getIrState() {
 
 // this is the requestEvent callback for the i2c communication with the master. It's called when the
 // master issues a Wire.requestFrom()
-// accordingly to the command that has been received the requested information is prepared to the
+// according to the command that has been received the requested information is prepared to the
 // buffer and then the proper number of bytes is written to the Wire
 void requestEvent(void) {
     if (cmd == 0x01) {
         // cmd 1 requests the actual reflection value (2 Bytes)
         if (runningMode != stopped) {
             // measurements are enabled, give back last reflection value
-            buffer[0] = m >> 8;
-            buffer[1] = m & 0x00FF;
+            uint16_t tm = m;
+            buffer[0] = tm >> 8;
+            buffer[1] = tm & 0xFF;
         }
         else {
             // measurement is stopped, give back error code 0xFFFF
@@ -114,25 +113,31 @@ void requestEvent(void) {
     }
 
     else if (cmd == 0x04) {
+        Serial.print("!");
         // transmit iPeriod to master
-        buffer[0] = (uint8_t)(iPeriod >> 24);
-        buffer[1] = (uint8_t)(iPeriod >> 16);
-        buffer[2] = (uint8_t)(iPeriod >> 8);
-        buffer[3] = (uint8_t)(iPeriod);
+        uint32_t tp = iPeriod;
+        buffer[0] = (uint8_t)(tp >> 24);
+        buffer[1] = (uint8_t)(tp >> 16);
+        buffer[2] = (uint8_t)(tp >> 8);
+        buffer[3] = (uint8_t)(tp);
         Wire.write(buffer, 4);
+        Serial.print("*");
     }
 
     else if (cmd == 0x08) {
-        buffer[0] = (uint8_t)(countsSinceLastQuery >> 24);
-        buffer[1] = (uint8_t)(countsSinceLastQuery >> 16);
-        buffer[2] = (uint8_t)(countsSinceLastQuery >> 8);
-        buffer[3] = (uint8_t)(countsSinceLastQuery);
-        buffer[4] = (uint8_t)(periodTimeSinceLastQuery >> 24);
-        buffer[5] = (uint8_t)(periodTimeSinceLastQuery >> 16);
-        buffer[6] = (uint8_t)(periodTimeSinceLastQuery >> 8);
-        buffer[7] = (uint8_t)(periodTimeSinceLastQuery);
+        uint32_t tv = countsSinceLastQuery;
+        uint32_t sv = periodTimeSinceLastQuery;     
         countsSinceLastQuery = 0;
         periodTimeSinceLastQuery = 0;
+   
+        buffer[0] = (uint8_t)(tv >> 24);
+        buffer[1] = (uint8_t)(tv >> 16);
+        buffer[2] = (uint8_t)(tv >> 8);
+        buffer[3] = (uint8_t)(tv);
+        buffer[4] = (uint8_t)(sv >> 24);
+        buffer[5] = (uint8_t)(sv >> 16);
+        buffer[6] = (uint8_t)(sv >> 8);
+        buffer[7] = (uint8_t)(sv);
         Wire.write(buffer, 8);
     }
 
@@ -211,6 +216,7 @@ void receiveEvent(int anzahl)
 void setup() {
     Serial.begin(9600);
     Serial.println();
+    analogReference(INTERNAL);
   
     pinMode(irOutPin, OUTPUT);
     pinMode(ledOutPin, OUTPUT);
@@ -308,7 +314,7 @@ void loop() {
 
         if (T > 100) {
             // if measured period time is long enough, generate interrupt for master...
-            // (if we started in state red we would get otherwise an absurd high power consumption)
+            // (if we started in state red we would otherwise get an absurd high power consumption)
             digitalWrite(intOutPin, LOW);
             Serial.print("\\");
             delay(1);
