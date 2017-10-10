@@ -23,6 +23,9 @@ uint32_t  periodTimeSinceLastQuery = 0;
 float     counter = 0.0;
 float     power = 0.0;
 
+// define the states of the wheel of the electricity meter
+// the wheel has a single red mark on it's circumference so we have the two states 'blank wheel' and 'red mark'
+// as well as the state 'unknown' if we just started and do not have detected the postion of the wheel yet
 enum irStates {
     unknown,
     red,
@@ -30,6 +33,14 @@ enum irStates {
 };
 enum irStates irState;
 
+// define the running modes for the measurements
+// stopped = self explanatory
+// freerun mode = reflection is permanently measured and the reflection measurement value
+//      can be requested by the master by sending command 0x01
+// measure mode = the device observes the wheel and measures the period time for each revolution of the wheel
+//      therefore thresholds for the reflection have to be defined. If the measured reflection value
+//      lies above the upper threshold the state 'blank' is considered. If the measured reflection value
+//      lies below the lower threshold the state 'red' is considered.
 enum runningModes {
     stopped,
     freerunMode,
@@ -38,6 +49,9 @@ enum runningModes {
 enum runningModes runningMode = measureMode;
 //enum runningModes runningMode = freerunMode;
 
+// measure the reflection of the wheel. To minimize influence of the ambience light we take two measurements
+// the first measurement is done with the ir emitter switched off, the second one is done with the ir emitter
+// switched on. The reflection measurement vale is then the difference between the two measurements.
 uint16_t measureReflection() {
     digitalWrite(irOutPin, LOW);
     delay(10);
@@ -50,6 +64,10 @@ uint16_t measureReflection() {
     return (uint16_t)irValueOn - (uint16_t)irValueOff;
 }
 
+// measure the state of the wheel. If the thresholds are not well defined the measurement is impossible
+// and therefore the state 'unknown' will be returned
+// if thresholds are defined the measured reflection value is compared against them and the state is
+// returned accordingly
 enum irStates getIrState() {
     static enum irStates lastState;
 
@@ -75,6 +93,10 @@ enum irStates getIrState() {
     }
 }
 
+// this is the requestEvent callback for the i2c communication with the master. It's called when the
+// master issues a Wire.requestFrom()
+// accordingly to the command that has been received the requested information is prepared to the
+// buffer and then the proper number of bytes is written to the Wire
 void requestEvent(void) {
     if (cmd == 0x01) {
         // cmd 1 requests the actual reflection value (2 Bytes)
@@ -120,6 +142,7 @@ void requestEvent(void) {
         Wire.write(buffer, 1);
     }
 }
+
 
 void receiveEvent(int anzahl)
 {
@@ -285,7 +308,7 @@ void loop() {
 
         if (T > 100) {
             // if measured period time is long enough, generate interrupt for master...
-            // (if we started in state red we would get otherwise an absurd high power consumption
+            // (if we started in state red we would get otherwise an absurd high power consumption)
             digitalWrite(intOutPin, LOW);
             Serial.print("\\");
             delay(1);
