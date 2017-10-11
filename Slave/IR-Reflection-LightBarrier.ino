@@ -2,6 +2,16 @@
 #include <Wire.h>
 #include <EEPROM.h>
 
+#define DEBUG
+
+#ifdef DEBUG
+#define Sprint(a) (Serial.print(a))
+#define Sprintln(a) (Serial.println(a))
+#else
+#define Sprint(a)
+#define Sprintln(a)
+#endif
+
 const int irOutPin =    12;
 const int ledOutPin =   13;
 const int analogInPin = A0;
@@ -16,6 +26,8 @@ uint8_t   r_buffer[32];
 uint8_t   cmd = 0xFF;
 uint16_t  lowerThreshold = 0;
 uint16_t  upperThreshold = 0;
+uint16_t  lowerThresholdToStore = 0;
+uint16_t  upperThresholdToStore = 0;
 uint16_t  measured_reflection = 0;
 uint32_t  start = 0;
 uint32_t  iPeriod = 0;
@@ -52,6 +64,11 @@ enum runningModes {
 enum runningModes runningMode = measureMode;
 //enum runningModes runningMode = freerunMode;
 enum runningModes runningModeToTransmit = runningMode;
+
+uint16_t measureReflection(void);
+enum irStates getIrState(void);
+void requestEvent(void);
+void receiveEvent(int);
 
 // measure the reflection of the wheel. To minimize influence of the ambience light we take two measurements
 // the first measurement is done with the ir emitter switched off, the second one is done with the ir emitter
@@ -118,14 +135,14 @@ void requestEvent(void) {
     }
 
     else if (cmd == 0x04) {
-        Serial.print("!");
+        Sprint("!");
         // transmit iPeriod to master
         buffer[0] = (uint8_t)(iPeriodToTransmit >> 24);
         buffer[1] = (uint8_t)(iPeriodToTransmit >> 16);
         buffer[2] = (uint8_t)(iPeriodToTransmit >> 8);
         buffer[3] = (uint8_t)(iPeriodToTransmit);
         Wire.write(buffer, 4);
-        Serial.print("*");
+        Sprint("*");
     }
 
     else if (cmd == 0x08) {
@@ -156,7 +173,6 @@ void requestEvent(void) {
     }
 }
 
-
 void receiveEvent(int anzahl)
 {
     uint8_t index = 0;
@@ -175,6 +191,8 @@ void receiveEvent(int anzahl)
             }
             if (index >= 4) {
                 // set flag 'store thresholds'. values will be stored in main loop
+                lowerThresholdToStore = (r_buffer[0]<< 8) + r_buffer[1];
+                upperThresholdToStore = (r_buffer[2]<< 8) + r_buffer[3];
                 storeThresholds = true;
             }
         }
@@ -249,11 +267,9 @@ void setup() {
     while (i < 4) {
         buf[i++] = EEPROM.read(eepromAddr++);
     }
-    uint16_t lowThres = (buf[0]<< 8) + buf[1];
-    uint16_t uppThres = (buf[2]<< 8) + buf[3];
-    if (lowThres != lowerThreshold) lowerThreshold = lowThres;
-    if (uppThres != upperThreshold) upperThreshold = uppThres;
-    Serial.println(
+    lowerThreshold = (uint16_t)((buf[0]<< 8) + buf[1]);
+    upperThreshold = (uint16_t)((buf[2]<< 8) + buf[3]);
+    Sprintln(
             "From eeprom: lower threshold: " + String(lowerThreshold) +
             ", upper threshold: " + String(upperThreshold)
     );
@@ -262,18 +278,22 @@ void setup() {
 void loop() {
     if (storeThresholds) {
         storeThresholds = false;
-        uint16_t lowThres = (r_buffer[0]<< 8) + r_buffer[1];
-        uint16_t uppThres = (r_buffer[2]<< 8) + r_buffer[3];
-        Serial.println(
-                "lowThres: " + String(lowThres) +
-                ", uppThres: " + String(uppThres)
+        Sprintln(
+                "lowThres: " + String(lowerThresholdToStore) +
+                ", uppThres: " + String(upperThresholdToStore)
         );
-        uint8_t i = 0;
+
         long eepromAddr = 0;
+        uint8_t buf[4];
+        uint8_t i = 0;
+        buf[0] = lowerThresholdToStore >> 8;
+        buf[1] = lowerThresholdToStore;
+        buf[2] = upperThresholdToStore >> 8;
+        buf[3] = upperThresholdToStore;
         while(i < 4) {
-            EEPROM.write(eepromAddr++, r_buffer[i++]);
+            EEPROM.write(eepromAddr++, buf[i++]);
         }
-        Serial.println("threshold values written to eeprom");
+        Sprintln("threshold values written to eeprom");
     }
 
     if (runningMode == freerunMode) {
@@ -298,16 +318,16 @@ void loop() {
                 ;
 
             if (irState == blank) {
-                Serial.println("Setup(), while state.blank");
+                Sprintln("Setup(), while state.blank");
                 while((irState = getIrState()) == blank)
                     ;
             }
 
-            Serial.println("Setup(), while state.red");
+            Sprintln("Setup(), while state.red");
             // wait for the falling edge and start measurement of period time
             while((irState = getIrState()) == red)
                 ;
-            Serial.println("Setup(): red --> blank");
+            Sprintln("Setup(): red --> blank");
             start = millis();
             prepareMeasureMode = false;
         }
@@ -321,29 +341,29 @@ void loop() {
         countsSinceLastQuery++;
         periodTimeSinceLastQuery += iPeriod;
 
-        Serial.println("red --> blank");
+        Sprintln("red --> blank");
 
         // send T to database...
-        Serial.println("T: " + String(T));
+        Sprintln("T: " + String(T));
 
         if (T > 100) {
             // if measured period time is long enough, generate interrupt for master...
             // (if we started in state red we would otherwise get an absurd high power consumption)
             digitalWrite(intOutPin, LOW);
-            Serial.print("\\");
+            Sprint("\\");
             delay(1);
-            Serial.print("/");
+            Sprint("/");
             digitalWrite(intOutPin, HIGH);
         }
         else {
-            Serial.println("ignoring first sample after startup");
+            Sprintln("ignoring first sample after startup");
         }
 
         // ...and start the measurement of period time again
         start = millis();
         while ((irState = getIrState()) == blank)
             ;
-        Serial.println("blank --> red");
+        Sprintln("blank --> red");
     }
 
     else {
