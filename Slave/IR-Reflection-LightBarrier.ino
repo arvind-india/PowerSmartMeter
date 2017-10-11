@@ -16,7 +16,7 @@ uint8_t   r_buffer[32];
 uint8_t   cmd = 0xFF;
 uint16_t  lowerThreshold = 0;
 uint16_t  upperThreshold = 0;
-uint16_t  m = 0;
+uint16_t  measured_reflection = 0;
 uint32_t  start = 0;
 uint32_t  iPeriod = 0;
 uint32_t  countsSinceLastQuery = 0;
@@ -81,7 +81,7 @@ enum irStates getIrState() {
     }
 
     uint16_t sample = measureReflection();
-    m = sample;
+    measured_reflection = sample;
     if (sample > upperThreshold) {
         digitalWrite(ledOutPin, LOW);
         lastState = blank;
@@ -165,7 +165,7 @@ void receiveEvent(int anzahl)
 
         if (cmd == 0x01) {
             // cmd == 1 = request actual reflection value
-            reflectionToTransmit = m;
+            reflectionToTransmit = measured_reflection;
         }
 
         else if (cmd == 0x02) {
@@ -277,16 +277,16 @@ void loop() {
     }
 
     if (runningMode == freerunMode) {
-        m = measureReflection();
+        measured_reflection = measureReflection();
         if (lowerThreshold == upperThreshold) {
             // if no thresholds are defined help with the alignment of the sensor.
             // therefore blink the led. The better the alignement the slower the led will blink
             digitalWrite(ledOutPin, HIGH);
-            delay(m / 2);
+            delay(measured_reflection / 2);
             digitalWrite(ledOutPin, LOW);
-            delay(m / 2);
+            delay(measured_reflection / 2);
         }
-        //Serial.println(String(cmd) + ":" + String(m));
+        //Serial.println(String(cmd) + ":" + String(measured_reflection));
     }
 
     else if (runningMode == measureMode) {
