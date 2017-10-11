@@ -1,3 +1,4 @@
+#include <Arduino.h>
 #include <Wire.h>
 #include <EEPROM.h>
 
@@ -236,6 +237,9 @@ void setup() {
     digitalWrite(intOutPin, HIGH);
 
     Wire.begin(42);
+    // switch off the internal pullup resistors
+    digitalWrite(SDA, 0);
+    digitalWrite(SCL, 0);
     Wire.onReceive(receiveEvent);
     Wire.onRequest(requestEvent);
 

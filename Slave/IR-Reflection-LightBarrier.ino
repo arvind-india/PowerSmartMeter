@@ -1,3 +1,4 @@
+#include <Arduino.h>
 #include <Wire.h>
 #include <EEPROM.h>
 
@@ -227,15 +228,18 @@ void setup() {
     Serial.begin(9600);
     Serial.println();
     analogReference(INTERNAL);
-  
+
     pinMode(irOutPin, OUTPUT);
     pinMode(ledOutPin, OUTPUT);
     pinMode(intOutPin, OUTPUT);
     digitalWrite(irOutPin, LOW);
     digitalWrite(ledOutPin, LOW);
     digitalWrite(intOutPin, HIGH);
-  
+
     Wire.begin(42);
+    // switch off the internal pullup resistors
+    digitalWrite(SDA, 0);
+    digitalWrite(SCL, 0);
     Wire.onReceive(receiveEvent);
     Wire.onRequest(requestEvent);
 
@@ -284,7 +288,7 @@ void loop() {
         }
         //Serial.println(String(cmd) + ":" + String(m));
     }
-  
+
     else if (runningMode == measureMode) {
         if (prepareMeasureMode) {
             // switched from any other mode to measure mode?
@@ -292,13 +296,13 @@ void loop() {
             irState = unknown;
             while ((irState = getIrState()) == unknown)
                 ;
-     
+
             if (irState == blank) {
                 Serial.println("Setup(), while state.blank");
                 while((irState = getIrState()) == blank)
                     ;
             }
-    
+
             Serial.println("Setup(), while state.red");
             // wait for the falling edge and start measurement of period time
             while((irState = getIrState()) == red)
@@ -316,9 +320,9 @@ void loop() {
         // calculate totals
         countsSinceLastQuery++;
         periodTimeSinceLastQuery += iPeriod;
-    
+
         Serial.println("red --> blank");
-    
+
         // send T to database...
         Serial.println("T: " + String(T));
 
@@ -341,7 +345,7 @@ void loop() {
             ;
         Serial.println("blank --> red");
     }
-  
+
     else {
         delay(10);
     }
