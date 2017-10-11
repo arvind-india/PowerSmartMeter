@@ -12,7 +12,7 @@ bool      storeThresholds = false;
 bool      prepareMeasureMode = true;
 uint8_t   buffer[32];
 uint8_t   r_buffer[32];
-volatile uint8_t   cmd = 0xFF;
+uint8_t   cmd = 0xFF;
 uint16_t  lowerThreshold = 0;
 uint16_t  upperThreshold = 0;
 uint16_t  m = 0;
@@ -20,6 +20,10 @@ uint32_t  start = 0;
 uint32_t  iPeriod = 0;
 uint32_t  countsSinceLastQuery = 0;
 uint32_t  periodTimeSinceLastQuery = 0;
+uint16_t  reflectionToTransmit = 0;
+uint32_t  iPeriodToTransmit = 0;
+uint32_t  countsSinceLastQueryToTransmit = 0;
+uint32_t  periodTimeSinceLastQueryToTransmit = 0;
 
 // define the states of the wheel of the electricity meter
 // the wheel has a single red mark on it's circumference so we have the two states 'blank wheel' and 'red mark'
@@ -46,6 +50,7 @@ enum runningModes {
 };
 enum runningModes runningMode = measureMode;
 //enum runningModes runningMode = freerunMode;
+enum runningModes runningModeToTransmit = runningMode;
 
 // measure the reflection of the wheel. To minimize influence of the ambience light we take two measurements
 // the first measurement is done with the ir emitter switched off, the second one is done with the ir emitter
@@ -100,9 +105,8 @@ void requestEvent(void) {
         // cmd 1 requests the actual reflection value (2 Bytes)
         if (runningMode != stopped) {
             // measurements are enabled, give back last reflection value
-            uint16_t tm = m;
-            buffer[0] = tm >> 8;
-            buffer[1] = tm & 0xFF;
+            buffer[0] = (uint8_t)(reflectionToTransmit >> 8);
+            buffer[1] = (uint8_t)reflectionToTransmit;
         }
         else {
             // measurement is stopped, give back error code 0xFFFF
@@ -115,36 +119,39 @@ void requestEvent(void) {
     else if (cmd == 0x04) {
         Serial.print("!");
         // transmit iPeriod to master
-        uint32_t tp = iPeriod;
-        buffer[0] = (uint8_t)(tp >> 24);
-        buffer[1] = (uint8_t)(tp >> 16);
-        buffer[2] = (uint8_t)(tp >> 8);
-        buffer[3] = (uint8_t)(tp);
+        buffer[0] = (uint8_t)(iPeriodToTransmit >> 24);
+        buffer[1] = (uint8_t)(iPeriodToTransmit >> 16);
+        buffer[2] = (uint8_t)(iPeriodToTransmit >> 8);
+        buffer[3] = (uint8_t)(iPeriodToTransmit);
         Wire.write(buffer, 4);
         Serial.print("*");
     }
 
     else if (cmd == 0x08) {
-        uint32_t tv = countsSinceLastQuery;
-        uint32_t sv = periodTimeSinceLastQuery;     
-        countsSinceLastQuery = 0;
-        periodTimeSinceLastQuery = 0;
-   
-        buffer[0] = (uint8_t)(tv >> 24);
-        buffer[1] = (uint8_t)(tv >> 16);
-        buffer[2] = (uint8_t)(tv >> 8);
-        buffer[3] = (uint8_t)(tv);
-        buffer[4] = (uint8_t)(sv >> 24);
-        buffer[5] = (uint8_t)(sv >> 16);
-        buffer[6] = (uint8_t)(sv >> 8);
-        buffer[7] = (uint8_t)(sv);
+        buffer[0] = (uint8_t)(countsSinceLastQueryToTransmit >> 24);
+        buffer[1] = (uint8_t)(countsSinceLastQueryToTransmit >> 16);
+        buffer[2] = (uint8_t)(countsSinceLastQueryToTransmit >> 8);
+        buffer[3] = (uint8_t)(countsSinceLastQueryToTransmit);
+        buffer[4] = (uint8_t)(periodTimeSinceLastQueryToTransmit >> 24);
+        buffer[5] = (uint8_t)(periodTimeSinceLastQueryToTransmit >> 16);
+        buffer[6] = (uint8_t)(periodTimeSinceLastQueryToTransmit >> 8);
+        buffer[7] = (uint8_t)(periodTimeSinceLastQueryToTransmit);
         Wire.write(buffer, 8);
     }
 
     else if (cmd == 0x10) {
         // cmd 16 requests the actual running mode (1 Byte)
-        buffer[0] = (uint8_t)runningMode;
+        buffer[0] = (uint8_t)runningModeToTransmit;
         Wire.write(buffer, 1);
+    }
+
+    else {
+        // answer unknown command with an easy recognizable bit pattern as error code
+        buffer[0] = 0xAA;
+        buffer[1] = 0x55;
+        buffer[2] = 0xAA;
+        buffer[3] = 0x55;
+        Wire.write(buffer, 4);
     }
 }
 
@@ -157,48 +164,47 @@ void receiveEvent(int anzahl)
 
         if (cmd == 0x01) {
             // cmd == 1 = request actual reflection value
-            // only set command code and wait for the data request
-            return;
+            reflectionToTransmit = m;
         }
 
-        if (cmd == 0x02) {
+        else if (cmd == 0x02) {
             // cmd == 2 = set thresholds. Wait for further 4 Bytes with the 2 values for lower and upper threshold
             while (Wire.available()) {
                 r_buffer[index++] = Wire.read();
             }
-            if (index >= 4)
+            if (index >= 4) {
                 // set flag 'store thresholds'. values will be stored in main loop
                 storeThresholds = true;
-            return;
+            }
         }
 
-        if (cmd == 0x04) {
+        else if (cmd == 0x04) {
             // cmd == 4 = request actual period time
-            // only set command code and wait for the data request
-            return;
+            iPeriodToTransmit = iPeriod;
         }
 
-        if (cmd == 0x08) {
+        else if (cmd == 0x08) {
             // cmd == 8 = request totals since last request
-            // only set command code and wait for the data request
-            return;
+            countsSinceLastQueryToTransmit = countsSinceLastQuery;
+            periodTimeSinceLastQueryToTransmit = periodTimeSinceLastQuery;
+            countsSinceLastQuery = 0;
+            periodTimeSinceLastQuery = 0;
         }
 
-        if (cmd == 0x10) {
+        else if (cmd == 0x10) {
             // cmd == 8 = request actual running mode
-            // only set command code and wait for the data request
-            return;
+            runningModeToTransmit = runningMode;
         }
 
-        if (cmd == 0x80) {
+        else if (cmd == 0x80) {
             runningMode = stopped;
         }
 
-        if (cmd == 0x81) {
+        else if (cmd == 0x81) {
             runningMode = freerunMode;
         }
 
-        if (cmd == 0x82) {
+        else if (cmd == 0x82) {
             if (lowerThreshold != upperThreshold) {
                 prepareMeasureMode = true;
                 runningMode = measureMode;
@@ -209,6 +215,10 @@ void receiveEvent(int anzahl)
                 runningMode = freerunMode;
             }
         }
+
+        else {
+            cmd = 0xFF;
+        }
     }
     return;
 }
@@ -217,14 +227,14 @@ void setup() {
     Serial.begin(9600);
     Serial.println();
     analogReference(INTERNAL);
-  
+
     pinMode(irOutPin, OUTPUT);
     pinMode(ledOutPin, OUTPUT);
     pinMode(intOutPin, OUTPUT);
     digitalWrite(irOutPin, LOW);
     digitalWrite(ledOutPin, LOW);
     digitalWrite(intOutPin, HIGH);
-  
+
     Wire.begin(42);
     Wire.onReceive(receiveEvent);
     Wire.onRequest(requestEvent);
@@ -274,7 +284,7 @@ void loop() {
         }
         //Serial.println(String(cmd) + ":" + String(m));
     }
-  
+
     else if (runningMode == measureMode) {
         if (prepareMeasureMode) {
             // switched from any other mode to measure mode?
@@ -282,13 +292,13 @@ void loop() {
             irState = unknown;
             while ((irState = getIrState()) == unknown)
                 ;
-     
+
             if (irState == blank) {
                 Serial.println("Setup(), while state.blank");
                 while((irState = getIrState()) == blank)
                     ;
             }
-    
+
             Serial.println("Setup(), while state.red");
             // wait for the falling edge and start measurement of period time
             while((irState = getIrState()) == red)
@@ -306,9 +316,9 @@ void loop() {
         // calculate totals
         countsSinceLastQuery++;
         periodTimeSinceLastQuery += iPeriod;
-    
+
         Serial.println("red --> blank");
-    
+
         // send T to database...
         Serial.println("T: " + String(T));
 
@@ -331,7 +341,7 @@ void loop() {
             ;
         Serial.println("blank --> red");
     }
-  
+
     else {
         delay(10);
     }
