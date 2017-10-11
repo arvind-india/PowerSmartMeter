@@ -122,7 +122,7 @@ void setModeMeasureMode() {
 totals requestTotals() {
     Wire.beginTransmission(42);
     Wire.write(8);
-    boolean allesgut = Wire.endTransmission();
+    boolean allesgut = Wire.endTransmission(false);
     Wire.requestFrom(42, 8);
     int index = 0;
     while (Wire.available()) {
@@ -138,14 +138,11 @@ uint32_t requestActualPeriodTime() {
     Serial.print('#');
     Wire.beginTransmission(42);
     Wire.write(4);
-    boolean allesgut = Wire.endTransmission();
+    boolean allesgut = Wire.endTransmission(false);
     Serial.print('*');
-    delay(1);
+    //delay(1);
     Wire.requestFrom(42, 4);
     int index = 0;
-    //delay(10);
-    while (!Wire.available())
-        ;
     while (Wire.available()) {
         uint8_t b = Wire.read();
         Serial.print("rb=" + String(b) + " ");
@@ -158,7 +155,7 @@ uint32_t requestActualPeriodTime() {
 uint16_t requestReflection(){
     Wire.beginTransmission(42);
     Wire.write(1);
-    boolean allesgut = Wire.endTransmission();
+    boolean allesgut = Wire.endTransmission(false);
     Wire.requestFrom(42, 2);
     int index = 0;
     while (Wire.available()) {
@@ -175,7 +172,7 @@ uint16_t requestReflection(){
 uint8_t requestActualRunningMode() {
     Wire.beginTransmission(42);
     Wire.write(16);
-    boolean allesgut = Wire.endTransmission();
+    boolean allesgut = Wire.endTransmission(false);
     Wire.requestFrom(42, 1);
     int index = 0;
     while (Wire.available()) {
@@ -334,13 +331,13 @@ void loop() {
     }
     
     if (dataAvailable) {
-        noInterrupts();
+        //noInterrupts();
         Serial.println("Received interrupt that data is available");
         uint32_t pt = requestActualPeriodTime();
         Serial.println("period time: " + String(pt) + "ms");
-        delay(10);
+        //delay(10);
         dataAvailable = false;
-        interrupts();
+        //interrupts();
     }
     
     else {
