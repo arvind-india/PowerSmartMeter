@@ -10,7 +10,7 @@
 #define INT_PIN D2
 #define BTN_PIN D7
 
-uint16_t mw[1000];
+uint16_t mw[1025];
 uint16_t lowerTrigger = 0;
 uint16_t upperTrigger = 0;
 
@@ -122,7 +122,8 @@ void setModeMeasureMode() {
 totals requestTotals() {
     Wire.beginTransmission(42);
     Wire.write(8);
-    boolean allesgut = Wire.endTransmission(false);
+    boolean allesgut = Wire.endTransmission();
+    delay(1);
     Wire.requestFrom(42, 8);
     int index = 0;
     while (Wire.available()) {
@@ -138,14 +139,14 @@ uint32_t requestActualPeriodTime() {
     Serial.print('#');
     Wire.beginTransmission(42);
     Wire.write(4);
-    boolean allesgut = Wire.endTransmission(false);
+    boolean allesgut = Wire.endTransmission();
     Serial.print('*');
-    //delay(1);
+    delay(1);
     Wire.requestFrom(42, 4);
     int index = 0;
     while (Wire.available()) {
         uint8_t b = Wire.read();
-        Serial.print("rb=" + String(b) + " ");
+        //Serial.print("rb=" + String(b) + " ");
         buffer[index++] = b;   
     }
     uint32_t m = (buffer[0] << 24) + (buffer[1] << 16) + (buffer[2] << 8) + buffer[3];
@@ -155,7 +156,8 @@ uint32_t requestActualPeriodTime() {
 uint16_t requestReflection(){
     Wire.beginTransmission(42);
     Wire.write(1);
-    boolean allesgut = Wire.endTransmission(false);
+    boolean allesgut = Wire.endTransmission();
+    delay(1);
     Wire.requestFrom(42, 2);
     int index = 0;
     while (Wire.available()) {
@@ -163,16 +165,16 @@ uint16_t requestReflection(){
         //Serial.print("rb=" + String(rb) + " ");
         buffer[index++] = rb;//Wire.read();   
     }
-    //Serial.println();
+    allesgut = Wire.endTransmission();
     uint16_t m = (buffer[0] << 8) + buffer[1]; 
-    //Serial.println(m);
     return m;
 }
 
 uint8_t requestActualRunningMode() {
     Wire.beginTransmission(42);
     Wire.write(16);
-    boolean allesgut = Wire.endTransmission(false);
+    boolean allesgut = Wire.endTransmission();
+    delay(1);
     Wire.requestFrom(42, 1);
     int index = 0;
     while (Wire.available()) {
@@ -194,7 +196,9 @@ void setup() {
     pinMode(BTN_PIN, INPUT_PULLUP);
     attachInterrupt(digitalPinToInterrupt(INT_PIN), handleInterrupt, FALLING);
     Wire.begin(0, 2);
-
+    // switch off the internal pullup resistors
+    //digitalWrite(SDA, 0);
+    //digitalWrite(SCL, 0);
 
     Serial.println("starting WiFi");
     WiFiManager wifiManager;
@@ -273,24 +277,25 @@ void loop() {
         
         Serial.println("free running mode active..");
         while (successCounter <= 5) {
-            for (uint16_t i=0; i < 1000; i++)
-                mw[i] = 0;
+            //for (uint16_t i=0; i < 1024; i++)
+            //    mw[i] = 0;
             
             uint32_t t1 = millis();
             while (millis() - t1 < 60000) {
                 uint16_t r = requestReflection();
-                delay(1);
+                //Serial.print("r = " + String(r));
+                delay(50);
                 mw[r]++;
             }
         
             uint16_t count = 0;
             uint16_t locMax = 0;
-            for (uint16_t i=1; i<1000; i++) {
+            for (uint16_t i=1; i<1025; i++) {
                 Serial.println(String(i) + ":" + String(mw[i]) + " ");
                 int16_t steigung = mw[i] - mw[i-1];
                 //Serial.print("S: " + String(steigung) + " ");
                     
-                if (steigung < -150) {
+                if (steigung < -50) {
                     locMax = (i-1);
                     //Serial.println("Lokales Maximum gefunden bei: " + String(locMax));
                     count++;
@@ -310,7 +315,7 @@ void loop() {
             Serial.println("maxLowerThreshold = " + String(maxLowerThreshold) + ", minUpperThreshold = " + String(minUpperThreshold));
             if (maxLowerThreshold >= minUpperThreshold) {
                 Serial.println("Could not evaluate thresholds, starting over..");
-                for (uint16_t i=0; i < 1000; i++)
+                for (uint16_t i=0; i < 1025; i++)
                     mw[i] = 0;
             }
             else {

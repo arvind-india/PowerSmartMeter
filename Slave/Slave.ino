@@ -121,6 +121,7 @@ enum irStates getIrState() {
 void requestEvent(void) {
     if (cmd == 0x01) {
         // cmd 1 requests the actual reflection value (2 Bytes)
+        Sprint("!");
         if (runningMode != stopped) {
             // measurements are enabled, give back last reflection value
             buffer[0] = (uint8_t)(reflectionToTransmit >> 8);
@@ -132,11 +133,12 @@ void requestEvent(void) {
             buffer[1] = 0xFF;
         }
         Wire.write(buffer, 2);
+        Sprint("*");
     }
 
     else if (cmd == 0x04) {
-        Sprint("!");
         // transmit iPeriod to master
+        Sprint("!");
         buffer[0] = (uint8_t)(iPeriodToTransmit >> 24);
         buffer[1] = (uint8_t)(iPeriodToTransmit >> 16);
         buffer[2] = (uint8_t)(iPeriodToTransmit >> 8);
@@ -146,6 +148,8 @@ void requestEvent(void) {
     }
 
     else if (cmd == 0x08) {
+        // transmit totals to master
+        Sprint("!");
         buffer[0] = (uint8_t)(countsSinceLastQueryToTransmit >> 24);
         buffer[1] = (uint8_t)(countsSinceLastQueryToTransmit >> 16);
         buffer[2] = (uint8_t)(countsSinceLastQueryToTransmit >> 8);
@@ -155,21 +159,26 @@ void requestEvent(void) {
         buffer[6] = (uint8_t)(periodTimeSinceLastQueryToTransmit >> 8);
         buffer[7] = (uint8_t)(periodTimeSinceLastQueryToTransmit);
         Wire.write(buffer, 8);
+        Sprint("*");
     }
 
     else if (cmd == 0x10) {
         // cmd 16 requests the actual running mode (1 Byte)
+        Sprint("!");
         buffer[0] = (uint8_t)runningModeToTransmit;
         Wire.write(buffer, 1);
+        Sprint("*");
     }
 
     else {
         // answer unknown command with an easy recognizable bit pattern as error code
+        Sprint("!");
         buffer[0] = 0xAA;
         buffer[1] = 0x55;
         buffer[2] = 0xAA;
         buffer[3] = 0x55;
         Wire.write(buffer, 4);
+        Sprint("*");
     }
 }
 
@@ -179,6 +188,7 @@ void receiveEvent(int anzahl)
     if (Wire.available()) {
         cmd = Wire.read();
 
+        //Sprintln("cmd = " + String(cmd));
         if (cmd == 0x01) {
             // cmd == 1 = request actual reflection value
             reflectionToTransmit = measured_reflection;
