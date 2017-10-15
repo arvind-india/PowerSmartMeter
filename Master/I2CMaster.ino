@@ -1,4 +1,10 @@
+#define BRZO
+
+#ifndef BRZO
 #include <Wire.h>
+#else
+#include <brzo_i2c.h>
+#endif
 #include <ESP8266WiFi.h>
 #include <ESP8266WebServer.h>
 #include <WiFiManager.h>
@@ -10,6 +16,10 @@
 #define INT_PIN D2
 #define BTN_PIN D7
 #define RES_PIN D6
+
+uint8_t SDA_PIN = D3;   // (0)
+uint8_t SCL_PIN = D4;   // (2)
+uint8_t SLV_ADR = 42;
 
 uint16_t mw[1025];
 uint16_t lowerTrigger = 0;
@@ -98,6 +108,7 @@ int setStateCcuSysVar(String sysvar, String value) {
     return rc;
 }
 
+#ifndef BRZO
 void setThresholds(uint16_t lowThres, uint16_t uppThres) {
     Wire.beginTransmission(42);
     Wire.write(2);
@@ -107,25 +118,76 @@ void setThresholds(uint16_t lowThres, uint16_t uppThres) {
     Wire.write(uppThres & 0xFF);
     boolean allesgut = Wire.endTransmission();
 }
+#else
+void setThresholds(uint16_t lowThres, uint16_t uppThres) {
+    brzo_i2c_start_transaction(SLV_ADR, 100);
+    uint8_t buf[4];
+    buf[0] = 0x02;
+    brzo_i2c_write(buf, 1, false);
 
+    buf[0] = (lowThres >> 8);
+    buf[1] = (lowThres & 0xFF);
+    buf[2] = (uppThres >> 8);
+    buf[3] = (uppThres & 0xFF);
+    brzo_i2c_write(buf, 4, false);
+
+    uint8_t res = brzo_i2c_end_transaction();
+    Serial.println("setThresholds: " + String(res));
+}
+#endif
+
+#ifndef BRZO
 void setModeFreeRunningMode() {
     Wire.beginTransmission(42);
     Wire.write(0x81);
     boolean allesgut = Wire.endTransmission();
 }
+#else
+void setModeFreeRunningMode() {
+    brzo_i2c_start_transaction(SLV_ADR, 100);
+    uint8_t buf[4];
+    buf[0] = 0x81;
+    brzo_i2c_write(buf, 1, false);
+    uint8_t res = brzo_i2c_end_transaction();
+    Serial.println("setModeFreeRunningMode: " + String(res));
+}
+#endif
 
+#ifndef BRZO
 void setModeMeasureMode() {
     Wire.beginTransmission(42);
     Wire.write(0x82);
     boolean allesgut = Wire.endTransmission();
 }
+#else
+void setModeMeasureMode() {
+    brzo_i2c_start_transaction(SLV_ADR, 100);
+    uint8_t buf[4];
+    buf[0] = 0x82;
+    brzo_i2c_write(buf, 1, false);
+    uint8_t res = brzo_i2c_end_transaction();
+    Serial.println("setModeMeasureMode: " + String(res));
+}
+#endif
 
+#ifndef BRZO
 void setModeAlignementMode() {
     Wire.beginTransmission(42);
     Wire.write(0x83);
     boolean allesgut = Wire.endTransmission();
 }
+#else
+void setModeAlignementMode() {
+    brzo_i2c_start_transaction(SLV_ADR, 100);
+    uint8_t buf[4];
+    buf[0] = 0x83;
+    brzo_i2c_write(buf, 1, false);
+    uint8_t res = brzo_i2c_end_transaction();
+    Serial.println("setModeAlignementMode: " + String(res));
+}
+#endif
 
+#ifndef BRZO
 totals requestTotals() {
     Wire.beginTransmission(42);
     Wire.write(8);
@@ -141,7 +203,28 @@ totals requestTotals() {
     totalValues.totalPeriodTime = (buffer[4] << 24) + (buffer[5] << 16) + (buffer[6] << 8) + buffer[7];
     return totalValues;
 }
+#else
+totals requestTotals() {
+    totals totalValues;
+    totalValues.totalRevolutions = 0;
+    totalValues.totalPeriodTime = 0;
+        
+    brzo_i2c_start_transaction(SLV_ADR, 100);
+    uint8_t buf[8];
+    buf[0] = 0x08;
+    brzo_i2c_write(buf, 1, false);
+    brzo_i2c_read(buffer, 8, false);
+    uint8_t res = brzo_i2c_end_transaction();
+    Serial.println("requestTotals: " + String(res));
+    if (res == 0) {
+        totalValues.totalRevolutions = ((buffer[0] << 24) | (buffer[1] << 16)  | (buffer[2] << 8) | buffer[3]);
+        totalValues.totalPeriodTime = ((buffer[4] << 24) | (buffer[5] << 16) | (buffer[6] << 8) | buffer[7]);
+    }
+    return totalValues;
+}
+#endif
 
+#ifndef BRZO
 uint32_t requestActualPeriodTime() {
     Serial.print('#');
     Wire.beginTransmission(42);
@@ -159,7 +242,25 @@ uint32_t requestActualPeriodTime() {
     uint32_t m = (buffer[0] << 24) + (buffer[1] << 16) + (buffer[2] << 8) + buffer[3];
     return m;
 }
+#else
+uint32_t requestActualPeriodTime() {
+    uint32_t m = 0;
 
+    brzo_i2c_start_transaction(SLV_ADR, 100);
+    uint8_t buf[4];
+    buf[0] = 0x04;
+    brzo_i2c_write(buf, 1, false);
+    brzo_i2c_read(buf, 4, false);
+    uint8_t res = brzo_i2c_end_transaction();
+    Serial.println("requestActualPeriodTime: " + String(res));
+    if (res == 0) {
+        m = ((buf[0] << 24) | (buf[1] << 16)  | (buf[2] << 8) | buf[3]);
+    }
+    return m;
+}
+#endif
+
+#ifndef BRZO
 uint16_t requestReflection(){
     Wire.beginTransmission(42);
     Wire.write(1);
@@ -176,7 +277,25 @@ uint16_t requestReflection(){
     uint16_t m = (buffer[0] << 8) + buffer[1]; 
     return m;
 }
+#else
+uint16_t requestReflection(){
+    uint16_t m = 0;
 
+    brzo_i2c_start_transaction(SLV_ADR, 100);
+    uint8_t buf[4];
+    buf[0] = 0x01;
+    brzo_i2c_write(buf, 1, true);
+    brzo_i2c_read(buffer, 2, false);
+    uint8_t res = brzo_i2c_end_transaction();
+    Serial.println("requestReflection: " + String(res));
+    if (res == 0) {
+        m = ((buffer[0] << 8) | buffer[1]);
+    }
+    return m;
+}
+#endif
+
+#ifndef BRZO
 uint8_t requestActualRunningMode() {
     Wire.beginTransmission(42);
     Wire.write(16);
@@ -190,6 +309,23 @@ uint8_t requestActualRunningMode() {
     uint8_t m = buffer[0]; 
     return m;
 }
+#else
+uint8_t requestActualRunningMode() {
+    uint8_t m = 0;
+
+    brzo_i2c_start_transaction(SLV_ADR, 100);
+    uint8_t buf[4];
+    buf[0] = 0x10;
+    brzo_i2c_write(buf, 1, false);
+    brzo_i2c_read(buf, 1, false);
+    uint8_t res = brzo_i2c_end_transaction();
+    Serial.println("requestActualRunningMode: " + String(res));
+    if (res == 0) {
+        m = buf[0];
+    }
+    return m;
+}
+#endif
 
 void handleInterrupt() {
     dataAvailable = true;
@@ -203,10 +339,19 @@ void setup() {
     pinMode(BTN_PIN, INPUT_PULLUP);
     pinMode(RES_PIN, INPUT_PULLUP);
     attachInterrupt(digitalPinToInterrupt(INT_PIN), handleInterrupt, FALLING);
+
+#ifndef BRZO
     Wire.begin(0, 2);
+    
     // switch off the internal pullup resistors
     //digitalWrite(SDA, 0);
     //digitalWrite(SCL, 0);
+#else
+    // Setup i2c with clock stretching timeout of 2000 usec
+    brzo_i2c_setup(SDA_PIN, SCL_PIN, 50000);
+#endif
+
+    requestActualRunningMode();
 
     Serial.println("starting WiFi");
     WiFiManager wifiManager;

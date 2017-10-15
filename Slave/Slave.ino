@@ -2,7 +2,7 @@
 #include <Wire.h>
 #include <EEPROM.h>
 
-//#define DEBUG
+#define DEBUG
 
 #ifdef DEBUG
 #define Sprint(a) (Serial.print(a))
