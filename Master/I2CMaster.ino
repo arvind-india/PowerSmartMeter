@@ -9,6 +9,7 @@
 
 #define INT_PIN D2
 #define BTN_PIN D7
+#define RES_PIN D6
 
 uint16_t mw[1025];
 uint16_t lowerTrigger = 0;
@@ -119,6 +120,12 @@ void setModeMeasureMode() {
     boolean allesgut = Wire.endTransmission();
 }
 
+void setModeAlignementMode() {
+    Wire.beginTransmission(42);
+    Wire.write(0x83);
+    boolean allesgut = Wire.endTransmission();
+}
+
 totals requestTotals() {
     Wire.beginTransmission(42);
     Wire.write(8);
@@ -194,6 +201,7 @@ void setup() {
     Serial.println();
     pinMode(INT_PIN, INPUT_PULLUP);
     pinMode(BTN_PIN, INPUT_PULLUP);
+    pinMode(RES_PIN, INPUT_PULLUP);
     attachInterrupt(digitalPinToInterrupt(INT_PIN), handleInterrupt, FALLING);
     Wire.begin(0, 2);
     // switch off the internal pullup resistors
@@ -252,39 +260,41 @@ void setup() {
     if (!loadConfig()) {
         Serial.println("Error loading config. This is a problem");
     }
-    
-    
-
     delay(500);
-    //setThresholds(222, 777);
-    //delay(500);
-    //setModeFreeRunningMode();
-    //setModeMeasureMode();
     Serial.println("actual runningMode = " + String(requestActualRunningMode()));
     startTime = millis();
 }
 
 void loop() {
-    if (digitalRead(BTN_PIN) == LOW) {
+    if (digitalRead(RES_PIN) == LOW && requestActualRunningMode() != 3) {
+        Serial.println("Reset triggers to: (0 , 0)");      
+        setThresholds(0, 0); 
+        Serial.println("thresholds reset, switching to alignement mode");
+        setModeAlignementMode();
+        delay(1000);
+    }
+    
+    else if (digitalRead(RES_PIN) == LOW && requestActualRunningMode() == 3) {
         uint16_t maxLowerThreshold = 0;
         uint16_t minUpperThreshold = 0;
         uint8_t successCounter = 0;
 
         Serial.println("trying to evaluate the IR reflection thresholds");
+        for (uint16_t i=0; i < 1024; i++)
+            mw[i] = 0;
         Serial.println("Changing to free running mode");
         setModeFreeRunningMode();
         delay(500);
         
         Serial.println("free running mode active..");
         while (successCounter <= 5) {
-            //for (uint16_t i=0; i < 1024; i++)
-            //    mw[i] = 0;
+           
             
             uint32_t t1 = millis();
             while (millis() - t1 < 60000) {
                 uint16_t r = requestReflection();
                 //Serial.print("r = " + String(r));
-                delay(50);
+                delay(25);
                 mw[r]++;
             }
         
@@ -315,11 +325,12 @@ void loop() {
             Serial.println("maxLowerThreshold = " + String(maxLowerThreshold) + ", minUpperThreshold = " + String(minUpperThreshold));
             if (maxLowerThreshold >= minUpperThreshold) {
                 Serial.println("Could not evaluate thresholds, starting over..");
-                for (uint16_t i=0; i < 1025; i++)
-                    mw[i] = 0;
+                //for (uint16_t i=0; i < 1025; i++)
+                //    mw[i] = 0;
             }
             else {
                 successCounter++;
+                break;
             }
         }
         uint16_t width = minUpperThreshold - maxLowerThreshold;

@@ -2,7 +2,7 @@
 #include <Wire.h>
 #include <EEPROM.h>
 
-#define DEBUG
+//#define DEBUG
 
 #ifdef DEBUG
 #define Sprint(a) (Serial.print(a))
@@ -59,9 +59,11 @@ enum irStates irState = unknown;
 enum runningModes {
     stopped,
     freerunMode,
-    measureMode
+    measureMode,
+    alignementMode
 };
-enum runningModes runningMode = measureMode;
+enum runningModes runningMode = stopped;
+//enum runningModes runningMode = measureMode;
 //enum runningModes runningMode = freerunMode;
 enum runningModes runningModeToTransmit = runningMode;
 
@@ -139,10 +141,17 @@ void requestEvent(void) {
     else if (cmd == 0x04) {
         // transmit iPeriod to master
         Sprint("!");
-        buffer[0] = (uint8_t)(iPeriodToTransmit >> 24);
-        buffer[1] = (uint8_t)(iPeriodToTransmit >> 16);
-        buffer[2] = (uint8_t)(iPeriodToTransmit >> 8);
-        buffer[3] = (uint8_t)(iPeriodToTransmit);
+        if (runningMode == measureMode) {
+            buffer[0] = (uint8_t)(iPeriodToTransmit >> 24);
+            buffer[1] = (uint8_t)(iPeriodToTransmit >> 16);
+            buffer[2] = (uint8_t)(iPeriodToTransmit >> 8);
+            buffer[3] = (uint8_t)(iPeriodToTransmit);
+        }
+        else {
+            for (uint8_t i = 0; i < 4; i++) {
+                buffer[i] = 0;
+            }
+        }
         Wire.write(buffer, 4);
         Sprint("*");
     }
@@ -150,14 +159,21 @@ void requestEvent(void) {
     else if (cmd == 0x08) {
         // transmit totals to master
         Sprint("!");
-        buffer[0] = (uint8_t)(countsSinceLastQueryToTransmit >> 24);
-        buffer[1] = (uint8_t)(countsSinceLastQueryToTransmit >> 16);
-        buffer[2] = (uint8_t)(countsSinceLastQueryToTransmit >> 8);
-        buffer[3] = (uint8_t)(countsSinceLastQueryToTransmit);
-        buffer[4] = (uint8_t)(periodTimeSinceLastQueryToTransmit >> 24);
-        buffer[5] = (uint8_t)(periodTimeSinceLastQueryToTransmit >> 16);
-        buffer[6] = (uint8_t)(periodTimeSinceLastQueryToTransmit >> 8);
-        buffer[7] = (uint8_t)(periodTimeSinceLastQueryToTransmit);
+        if (runningMode == measureMode) {
+            buffer[0] = (uint8_t)(countsSinceLastQueryToTransmit >> 24);
+            buffer[1] = (uint8_t)(countsSinceLastQueryToTransmit >> 16);
+            buffer[2] = (uint8_t)(countsSinceLastQueryToTransmit >> 8);
+            buffer[3] = (uint8_t)(countsSinceLastQueryToTransmit);
+            buffer[4] = (uint8_t)(periodTimeSinceLastQueryToTransmit >> 24);
+            buffer[5] = (uint8_t)(periodTimeSinceLastQueryToTransmit >> 16);
+            buffer[6] = (uint8_t)(periodTimeSinceLastQueryToTransmit >> 8);
+            buffer[7] = (uint8_t)(periodTimeSinceLastQueryToTransmit);
+        }
+        else {
+            for (uint8_t i = 0; i < 8; i++) {
+                buffer[i] = 0;
+            }
+        }
         Wire.write(buffer, 8);
         Sprint("*");
     }
@@ -226,14 +242,17 @@ void receiveEvent(int anzahl)
         }
 
         else if (cmd == 0x80) {
+            // cmd == 0x80 = stop measurements
             runningMode = stopped;
         }
 
         else if (cmd == 0x81) {
+            // cmd == 0x81 = switch to runningmode freerunMode
             runningMode = freerunMode;
         }
 
         else if (cmd == 0x82) {
+            // cmd == 0x82 = switch to runningmode measureMode
             if (lowerThreshold != upperThreshold) {
                 prepareMeasureMode = true;
                 runningMode = measureMode;
@@ -243,6 +262,11 @@ void receiveEvent(int anzahl)
                 // switch to freerunMode instead..
                 runningMode = freerunMode;
             }
+        }
+
+        else if (cmd == 0x83) {
+            // cmd == 0x83 = switch to runningmode alignementMode
+            runningMode = alignementMode;
         }
 
         else {
@@ -283,6 +307,13 @@ void setup() {
             "From eeprom: lower threshold: " + String(lowerThreshold) +
             ", upper threshold: " + String(upperThreshold)
     );
+    if (lowerThreshold == upperThreshold) {
+        runningMode = alignementMode;
+    }
+    else {
+        prepareMeasureMode = true;
+        runningMode = measureMode;
+    }
 }
 
 void loop() {
@@ -306,16 +337,16 @@ void loop() {
         Sprintln("threshold values written to eeprom");
     }
 
+    if (runningMode == alignementMode) {
+        uint16_t m_refl = measureReflection();
+        digitalWrite(ledOutPin, HIGH);
+        delay(m_refl / 2);
+        digitalWrite(ledOutPin, LOW);
+        delay(m_refl / 2);
+    }
+
     if (runningMode == freerunMode) {
         measured_reflection = measureReflection();
-        if (lowerThreshold == upperThreshold) {
-            // if no thresholds are defined help with the alignment of the sensor.
-            // therefore blink the led. The better the alignement the slower the led will blink
-            digitalWrite(ledOutPin, HIGH);
-            delay(measured_reflection / 2);
-            digitalWrite(ledOutPin, LOW);
-            delay(measured_reflection / 2);
-        }
         //Serial.println(String(cmd) + ":" + String(measured_reflection));
     }
 
