@@ -6,15 +6,15 @@
 
 ### Here is the solution:
 
-
 Change from this..
 
-![legacy power meter](/Art/IMG_4602.jpg)
+![legacy power meter](/Art/IMG_4602.png)
 
 
 to this..
 
 ![smart meter](/Art/IMG_0653.jpg)
+
 
 and this..
 
