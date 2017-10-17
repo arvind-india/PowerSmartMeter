@@ -1,8 +1,7 @@
 # PowerSmartMeter
 
 #### Interested in getting a smart meter to gain an overview about your power consumption?
-#### Without having a smart meter you can't control? 
-#### From which you don't know which information is sent to Big Mama or elsewhere?
+#### Without having a smart meter you can't control? <br>From which you don't know which information is sent to Big Mama or elsewhere?
 
 ### Here is the solution:
 
