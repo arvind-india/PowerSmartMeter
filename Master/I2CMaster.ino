@@ -523,7 +523,7 @@ void loop() {
             startTime = millis();  
             totals tvs = requestTotals();
             Serial.println("Total values: totalRevs = " + String(tvs.totalRevolutions) + ", totalPeriodTime = " + String(tvs.totalPeriodTime)+ "ms");
-            if (tvs.totalRevolutions || zeroCounter >= 12) {
+            if (tvs.totalRevolutions || zeroCounter >= 11) {
                 float period;
                 zeroCounter = 0;
                 if (tvs.totalRevolutions) {
