@@ -102,12 +102,12 @@ enum irStates getIrState() {
     uint16_t sample = measureReflection();
     measured_reflection = sample;
     if (sample > upperThreshold) {
-        digitalWrite(ledOutPin, LOW);
+        digitalWrite(ledOutPin, HIGH);
         lastState = blank;
         return blank;
     }
     else if (sample < lowerThreshold) {
-        digitalWrite(ledOutPin, HIGH);
+        digitalWrite(ledOutPin, LOW);
         lastState = red;
         return red;
     }

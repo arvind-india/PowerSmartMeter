@@ -4,6 +4,7 @@
 #include <Wire.h>
 #else
 #include <brzo_i2c.h>
+#include "SH1106Brzo.h"
 #endif
 #include <ESP8266WiFi.h>
 #include <ESP8266WebServer.h>
@@ -13,6 +14,8 @@
 #include <ArduinoJson.h>
 #include <Fs.h>
 
+SH1106Brzo  display(0x3c, D3, D4);
+
 #define INT_PIN D2
 #define BTN_PIN D7
 #define RES_PIN D6
@@ -20,6 +23,8 @@
 uint8_t SDA_PIN = D3;   // (0)
 uint8_t SCL_PIN = D4;   // (2)
 uint8_t SLV_ADR = 42;
+
+uint8_t zeroCounter = 0;
 
 uint16_t mw[1025];
 uint16_t lowerTrigger = 0;
@@ -352,6 +357,8 @@ void setup() {
 #endif
 
     requestActualRunningMode();
+    display.init();
+    display.flipScreenVertically();
 
     Serial.println("starting WiFi");
     WiFiManager wifiManager;
@@ -499,21 +506,46 @@ void loop() {
         //delay(10);
         dataAvailable = false;
         //interrupts();
+
+        //display.clear();
+        //display.setTextAlignment(TEXT_ALIGN_LEFT);
+        //display.setFont(ArialMT_Plain_16);
+        //display.drawString(0, 6, "Tp: " + String(pt) + "ms");
+        //display.display();
     }
     
     else {
         //requestReflection();
         //delay(1000);
-        if (millis() - startTime > 300000){
+        //if (millis() - startTime > 300000){
+        if (millis() - startTime > 30000){
             Serial.println("requesting total values");
             startTime = millis();  
             totals tvs = requestTotals();
             Serial.println("Total values: totalRevs = " + String(tvs.totalRevolutions) + ", totalPeriodTime = " + String(tvs.totalPeriodTime)+ "ms");
-            if (tvs.totalRevolutions) {
-                float period = (float)tvs.totalPeriodTime / 1000.0;
-                counter += (float)tvs.totalRevolutions / revs_per_kWh; 
-                power = (float)tvs.totalRevolutions * 3600.0 / (revs_per_kWh * period);
+            if (tvs.totalRevolutions || zeroCounter >= 12) {
+                float period;
+                zeroCounter = 0;
+                if (tvs.totalRevolutions) {
+                    period = (float)tvs.totalPeriodTime / 1000.0;
+                    counter += (float)tvs.totalRevolutions / revs_per_kWh; 
+                    power = (float)tvs.totalRevolutions * 3600.0 / (revs_per_kWh * period);
+                }
+                else {
+                    Serial.println("writing zeros to database once an hour");
+                    power = 0.0;
+                }
                 Serial.println("actual counter: " + String(counter) + "kWh, actual power: " + String(power)+ "kW");
+
+                display.clear();
+                display.setTextAlignment(TEXT_ALIGN_LEFT);
+                display.setFont(ArialMT_Plain_10);
+                display.drawString(4, 6, "aktueller Zählerstand:");
+                display.drawString(32, 20, String(counter) + " kWh");
+                display.drawString(4, 34, "aktuelle Leistung:");
+                display.drawString(32, 48, String(power) + " kW");
+                
+                display.display();
          
                 if (WiFi.status() == WL_CONNECTED) {
                     Serial.println("WiFi connected, sending data");
@@ -526,6 +558,9 @@ void loop() {
                     String pwd = WiFi.psk();
                     WiFi.begin(ssid.c_str(), pwd.c_str());
                 }
+            }
+            else {
+                zeroCounter++;
             }
         }
     }
